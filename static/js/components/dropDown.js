@@ -1,30 +1,25 @@
 /**
- *  renders the dropdown message and
- *  handles the user selection
- * @param {Array} drop_down_data json array
+ * Renders a dropdown message and sends the chosen value to Rasa.
+ * @param {Array} dropDownData json array of `{ label, value }`
  */
-function renderDropDwon(drop_down_data) {
-    let drop_down_options = "";
-    for (let i = 0; i < drop_down_data.length; i += 1) {
-        drop_down_options += `<option value="${drop_down_data[i].value}">${drop_down_data[i].label}</option>`;
-    }
-    const drop_down_select = `<div class="dropDownMsg"><select class="browser-default dropDownSelect"> <option value="" disabled selected>Choose your option</option>${drop_down_options}</select></div>`;
-    $(".chats").append(drop_down_select);
-    scrollToBottomOfResults();
-    // add event handler if user selects a option.
-    // eslint-disable-next-line func-names
-    $("select").on("change", function () {
-        let value = "";
-        let label = "";
-        $("select option:selected").each(() => {
-            label += $(this).val();
-            value += $(this).val();
-        });
+function renderDropDwon(dropDownData) {
+  const select = el("select", { class: "browser-default dropDownSelect", "aria-label": getConfig().messages.dropdownPlaceholder });
+  select.appendChild(
+    el("option", { value: "", disabled: true, selected: true, text: getConfig().messages.dropdownPlaceholder })
+  );
+  dropDownData.forEach((option) => {
+    if (!option) return;
+    select.appendChild(el("option", { value: textOf(option.value), text: textOf(option.label) }));
+  });
+  const wrapper = el("div", { class: "dropDownMsg" }, select);
+  chatLog().appendChild(wrapper);
+  scrollToBottomOfResults();
 
-        setUserResponse(label);
-        // eslint-disable-next-line no-use-before-define
-        send(value);
-        $(".dropDownMsg").remove();
-    });
+  select.addEventListener("change", () => {
+    const chosen = select.selectedOptions[0];
+    if (!chosen) return;
+    setUserResponse(chosen.textContent);
+    send(select.value);
+    wrapper.remove();
+  });
 }
-

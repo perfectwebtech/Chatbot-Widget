@@ -38,6 +38,12 @@
 
 ## Instructions
 - You can read the instructions here in [instructions.md](docs/instructions.md)
+- All settings (Rasa URL, bot name, avatars, UI text) live in [static/js/config.js](static/js/config.js); nothing else needs editing to deploy.
+
+## Security
+- Bot and user content is rendered as text or sanitised with [DOMPurify](https://github.com/cure53/DOMPurify); media URLs are restricted to `http(s)`.
+- No scripts, fonts or icons are loaded from third-party CDNs at runtime.
+- See the production checklist in [instructions.md](docs/instructions.md#production-checklist).
 
 ## Documentation
 - Check out the documentation on how to send bot response from Rasa in [response.md](docs/responses.md)
@@ -50,6 +56,8 @@
 - [Materialize CSS](https://materializecss.com) for CSS
 - [Showdownjs](https://github.com/showdownjs/showdown) for Markdown suppport
 - [Chart.js](https://www.chartjs.org/) for Charts
+- [DOMPurify](https://github.com/cure53/DOMPurify) for HTML sanitisation
+- [jQuery](https://jquery.com/) (bundled, no CDN)
 
 ## Demo:
 

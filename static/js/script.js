@@ -1,67 +1,86 @@
+/**
+ * Widget bootstrap: applies the configuration to the markup and wires the
+ * launcher, header menu and greeting pop-up.
+ */
 
-/* module for importing other js files */
-function include(file) {
-  const script = document.createElement('script');
-  script.src = file;
-  script.type = 'text/javascript';
-  script.defer = true;
+/** Copy configurable text and images into the static markup. */
+function applyConfigToMarkup() {
+  const config = getConfig();
+  const { messages } = config;
 
-  document.getElementsByTagName('head').item(0).appendChild(script);
+  $(".chat_header_title").text(config.botName);
+  $(".imgProfile").attr("src", config.launcherAvatar).attr("alt", config.botName);
+  $("#profile_div").attr("aria-label", messages.openChat);
+  $(".tap-target-content h5").text(config.greetingTitle);
+  $(".tap-target-content p").text(config.greetingText);
+  $("#userInput").attr("placeholder", messages.inputPlaceholder);
+  $("#sendButton").attr("aria-label", messages.send);
+  $(".dropdown-trigger").attr("aria-label", messages.menu);
+  $("#clear").text(messages.menuClear);
+  $("#restart").text(messages.menuRestart);
+  $("#close").text(messages.menuClose);
 }
 
-
-// Bot pop-up intro
-document.addEventListener("DOMContentLoaded", () => {
-  const elemsTap = document.querySelector(".tap-target");
+/** Show the Materialize tap-target greeting for a few seconds. */
+function showGreetingPopup() {
+  const config = getConfig();
+  const target = document.querySelector(".tap-target");
+  if (!target) return;
   // eslint-disable-next-line no-undef
-  const instancesTap = M.TapTarget.init(elemsTap, {});
-  instancesTap.open();
-  setTimeout(() => {
-    instancesTap.close();
-  }, 4000);
-});
+  const instance = M.TapTarget.init(target, {});
+  instance.open();
+  setTimeout(() => instance.close(), config.greetingPopupDurationMs);
+}
 
-/* import components */
-include('./static/js/components/index.js');
+function toggleWidget() {
+  $(".profile_div").toggle();
+  $(".widget").toggle();
+  const open = $(".widget").is(":visible");
+  $("#profile_div").attr("aria-expanded", open ? "true" : "false");
+  if (open) {
+    $(".usrInput").focus();
+    scrollToBottomOfResults();
+  }
+}
 
-window.addEventListener('load', () => {
-  // initialization
-  $(document).ready(() => {
-    // Bot pop-up intro
-    $("div").removeClass("tap-target-origin");
+document.addEventListener("DOMContentLoaded", () => {
+  const config = getConfig();
+  applyConfigToMarkup();
 
-    // drop down menu for close, restart conversation & clear the chats.
-    $(".dropdown-trigger").dropdown();
+  if (config.showGreetingPopup) {
+    showGreetingPopup();
+  } else {
+    $(".tap-target").remove();
+  }
+  $("div").removeClass("tap-target-origin");
 
-    // initiate the modal for displaying the charts,
-    // if you dont have charts, then you comment the below line
-    $(".modal").modal();
+  // header menu for clear, restart & close
+  $(".dropdown-trigger").dropdown();
+  // modal that renders expanded charts
+  $(".modal").modal();
 
-    // enable this if u have configured the bot to start the conversation.
-    // showBotTyping();
-    // $("#userInput").prop('disabled', true);
+  if (config.startConversation) {
+    $("#userInput").prop("disabled", true);
+    customActionTrigger();
+  }
 
-    // if you want the bot to start the conversation
-    // customActionTrigger();
+  $("#profile_div").on("click keydown", (e) => {
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    toggleWidget();
   });
-  // Toggle the chatbot screen
-  $("#profile_div").click(() => {
-    $(".profile_div").toggle();
-    $(".widget").toggle();
-  });
 
-  // clear function to clear the chat contents of the widget.
-  $("#clear").click(() => {
+  $("#clear").on("click", (e) => {
+    e.preventDefault();
     $(".chats").fadeOut("normal", () => {
+      destroyCharts();
       $(".chats").html("");
       $(".chats").fadeIn();
     });
   });
 
-  // close function to close the widget.
-  $("#close").click(() => {
-    $(".profile_div").toggle();
-    $(".widget").toggle();
-    scrollToBottomOfResults();
+  $("#close").on("click", (e) => {
+    e.preventDefault();
+    toggleWidget();
   });
 });
