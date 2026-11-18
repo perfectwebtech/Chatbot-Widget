@@ -1,35 +1,34 @@
 /**
- *  adds vertically stacked buttons as a bot response
- * @param {Array} suggestions buttons json array
+ * Adds vertically stacked buttons as a bot response.
+ * @param {Array} suggestions buttons json array of `{ title, payload }`
  */
 function addSuggestion(suggestions) {
-    setTimeout(() => {
-        const suggLength = suggestions.length;
-        $(
-            ' <div class="singleCard"> <div class="suggestions"><div class="menu"></div></div></diV>',
-        )
-            .appendTo(".chats")
-            .hide()
-            .fadeIn(1000);
-        // Loop through suggestions
-        for (let i = 0; i < suggLength; i += 1) {
-            $(
-                `<div class="menuChips" data-payload='${suggestions[i].payload}'>${suggestions[i].title}</div>`,
-            ).appendTo(".menu");
-        }
-        scrollToBottomOfResults();
-    }, 1000);
+  const menu = el("div", { class: "menu" });
+  suggestions.forEach((suggestion) => {
+    if (!suggestion) return;
+    menu.appendChild(
+      el("div", {
+        class: "menuChips",
+        role: "button",
+        tabindex: "0",
+        text: textOf(suggestion.title),
+        dataset: { payload: textOf(suggestion.payload) },
+      })
+    );
+  });
+  appendToChat(
+    el("div", { class: "singleCard" }, el("div", { class: "suggestions" }, menu))
+  );
 }
 
-
-// on click of suggestion's button, get the title value and send it to rasa
-$(document).on("click", ".menu .menuChips", function () {
-    const text = this.innerText;
-    const payload = this.getAttribute("data-payload");
-    console.log("payload: ", this.getAttribute("data-payload"));
-    setUserResponse(text);
-    send(payload);
-
-    // delete the suggestions once user click on it.
-    $(".suggestions").remove();
+// on click of a suggestion button, show its title and send its payload to Rasa
+$(document).on("click keydown", ".menu .menuChips", function onChip(e) {
+  if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  const text = this.textContent;
+  const payload = this.dataset.payload;
+  log("payload:", payload);
+  setUserResponse(text);
+  send(payload);
+  $(".suggestions").remove();
 });

@@ -1,421 +1,347 @@
 /**
- * scroll to the bottom of the chats after new message has been added to chat
+ * Core chat behaviour: rendering user and bot messages, talking to the Rasa
+ * REST channel and wiring up the input controls.
+ *
+ * All text coming from the user or the bot is inserted either as text nodes
+ * or as DOMPurify-sanitised HTML. Never concatenate it into HTML strings.
  */
-const converter = new showdown.Converter();
-function scrollToBottomOfResults() {
-  const terminalResultsDiv = document.getElementById("chats");
-  terminalResultsDiv.scrollTop = terminalResultsDiv.scrollHeight;
-}
+
+/** Conversation id sent to Rasa as `sender`. */
+const senderId =
+  window.crypto && typeof window.crypto.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : uuidv4();
+
+/** Tags that make a bot message render as a block (span) instead of a paragraph. */
+const BLOCK_TAG_PATTERN = /<(blockquote|img|pre|code|ul|ol|li|h[1-6]|table)\b/i;
 
 /**
- * Set user response on the chat screen
+ * Render the user's message on the chat screen and show the typing indicator.
  * @param {String} message user message
  */
 function setUserResponse(message) {
-  const user_response = `<img class="userAvatar" src='./static/img/userAvatar.jpg'><p class="userMsg">${message} </p><div class="clearfix"></div>`;
-  $(user_response).appendTo(".chats").show("slow");
+  const nodes = [
+    el("img", { class: "userAvatar", src: getConfig().userAvatar, alt: "" }),
+    el("p", { class: "userMsg", text: message }),
+    clearfix(),
+  ];
+  appendToChat(nodes);
 
   $(".usrInput").val("");
-  scrollToBottomOfResults();
   showBotTyping();
   $(".suggestions").remove();
 }
 
 /**
- * returns formatted bot response
- * @param {String} text bot message response's text
- *
+ * Build a bot message bubble from Markdown text.
+ * @param {String} text bot message (Markdown allowed)
+ * @returns {Array<Node>}
  */
-function getBotResponse(text) {
-  botResponse = `<img class="botAvatar" src="./static/img/sara_avatar.png"/><span class="botMsg">${text}</span><div class="clearfix"></div>`;
-  return botResponse;
+function buildBotTextMessage(text) {
+  let html = markdownToSafeHtml(text);
+  html = html
+    .replaceAll("<p>", "")
+    .replaceAll("</p>", "")
+    .replaceAll("<strong>", "<b>")
+    .replaceAll("</strong>", "</b>");
+  html = html.replace(/(?:\r\n|\r|\n)/g, "<br>");
+
+  const isBlock = BLOCK_TAG_PATTERN.test(html);
+  if (isBlock) {
+    // block-level markdown carries its own spacing
+    html = html.replaceAll("<br>", "");
+    html = html.replaceAll("<img", '<img class="imgcard_mrkdwn"');
+  }
+  // `html` has already been through DOMPurify; the replacements above only
+  // touch tag names and classes, never attribute values.
+  const bubble = el(isBlock ? "span" : "p", { class: "botMsg" });
+  bubble.innerHTML = sanitizeHtml(html);
+  return [botAvatarImg(), bubble, clearfix()];
+}
+
+/** Show the configured fallback message as a bot bubble. */
+function showFallbackMessage() {
+  appendToChat([
+    botAvatarImg(),
+    el("p", { class: "botMsg", text: getConfig().messages.fallback }),
+    clearfix(),
+  ]);
 }
 
 /**
- * renders bot response on to the chat screen
- * @param {Array} response json array containing different types of bot response
+ * Render an image response.
+ * @param {String} url
+ */
+function renderImage(url) {
+  if (!isSafeUrl(url)) {
+    log("Ignoring image with unsafe URL", url);
+    return;
+  }
+  appendToChat([
+    el("div", { class: "singleCard" }, el("img", { class: "imgcard", src: url, alt: "" })),
+    clearfix(),
+  ]);
+}
+
+/**
+ * Render a video attachment inside a sandboxed iframe.
+ * @param {String} url
+ */
+function renderVideo(url) {
+  if (!isSafeUrl(url)) {
+    log("Ignoring video with unsafe URL", url);
+    return;
+  }
+  const frame = el("iframe", {
+    src: url,
+    frameborder: "0",
+    allow: "fullscreen; picture-in-picture",
+    referrerpolicy: "strict-origin-when-cross-origin",
+    sandbox: "allow-scripts allow-same-origin allow-presentation allow-popups",
+    title: "Video",
+  });
+  appendToChat(el("div", { class: "video-container" }, frame));
+}
+
+/**
+ * Render a single Rasa `custom` payload.
+ * @param {Object} message a Rasa response object with a `custom` key
+ * @returns {Boolean} true when the payload type ends the rendering of this batch
+ */
+function renderCustomPayload(message) {
+  const custom = message.custom || {};
+  const { payload, data } = custom;
+
+  switch (payload) {
+    case "quickReplies":
+      showQuickReplies(data || []);
+      return true;
+    case "pdf_attachment":
+      renderPdfAttachment(message);
+      return true;
+    case "dropDown":
+      renderDropDwon(data || []);
+      return true;
+    case "location":
+      $("#userInput").prop("disabled", true);
+      getLocation();
+      scrollToBottomOfResults();
+      return true;
+    case "cardsCarousel":
+      showCardsCarousel(data || []);
+      return true;
+    case "chart":
+      renderChartMessage(data || {});
+      return true;
+    case "collapsible":
+      createCollapsible(data || []);
+      return false;
+    default:
+      log("Unknown custom payload", payload);
+      return false;
+  }
+}
+
+/**
+ * Render a batch of bot responses on to the chat screen.
+ * @param {Array} response json array of Rasa response objects
  *
  * for more info: `https://rasa.com/docs/rasa/connectors/your-own-website#request-and-response-format`
  */
 function setBotResponse(response) {
-  // renders bot response after 500 milliseconds
-  setTimeout(() => {
-    hideBotTyping();
-    if (response.length < 1) {
-      // if there is no response from Rasa, send  fallback message to the user
-      const fallbackMsg = "I am facing some issues, please try again later!!!";
+  hideBotTyping();
 
-      const BotResponse = `<img class="botAvatar" src="./static/img/sara_avatar.png"/><p class="botMsg">${fallbackMsg}</p><div class="clearfix"></div>`;
-
-      $(BotResponse).appendTo(".chats").hide().fadeIn(1000);
-      scrollToBottomOfResults();
-    } else {
-      // if we get response from Rasa
-      for (let i = 0; i < response.length; i += 1) {
-        // check if the response contains "text"
-        if (Object.hasOwnProperty.call(response[i], "text")) {
-          if (response[i].text != null) {
-            // convert the text to mardown format using showdown.js(https://github.com/showdownjs/showdown);
-            let botResponse;
-            let html = converter.makeHtml(response[i].text);
-            html = html
-              .replaceAll("<p>", "")
-              .replaceAll("</p>", "")
-              .replaceAll("<strong>", "<b>")
-              .replaceAll("</strong>", "</b>");
-            html = html.replace(/(?:\r\n|\r|\n)/g, "<br>");
-            console.log(html);
-            // check for blockquotes
-            if (html.includes("<blockquote>")) {
-              html = html.replaceAll("<br>", "");
-              botResponse = getBotResponse(html);
-            }
-            // check for image
-            if (html.includes("<img")) {
-              html = html.replaceAll("<img", '<img class="imgcard_mrkdwn" ');
-              botResponse = getBotResponse(html);
-            }
-            // check for preformatted text
-            if (html.includes("<pre") || html.includes("<code>")) {
-              botResponse = getBotResponse(html);
-            }
-            // check for list text
-            if (
-              html.includes("<ul") ||
-              html.includes("<ol") ||
-              html.includes("<li") ||
-              html.includes("<h3")
-            ) {
-              html = html.replaceAll("<br>", "");
-              // botResponse = `<img class="botAvatar" src="./static/img/sara_avatar.png"/><span class="botMsg">${html}</span><div class="clearfix"></div>`;
-              botResponse = getBotResponse(html);
-            } else {
-              // if no markdown formatting found, render the text as it is.
-              if (!botResponse) {
-                botResponse = `<img class="botAvatar" src="./static/img/sara_avatar.png"/><p class="botMsg">${response[i].text}</p><div class="clearfix"></div>`;
-              }
-            }
-            // append the bot response on to the chat screen
-            $(botResponse).appendTo(".chats").hide().fadeIn(1000);
-          }
-        }
-
-        // check if the response contains "images"
-        if (Object.hasOwnProperty.call(response[i], "image")) {
-          if (response[i].image !== null) {
-            const BotResponse = `<div class="singleCard"><img class="imgcard" src="${response[i].image}"></div><div class="clearfix">`;
-
-            $(BotResponse).appendTo(".chats").hide().fadeIn(1000);
-          }
-        }
-
-        // check if the response contains "buttons"
-        if (Object.hasOwnProperty.call(response[i], "buttons")) {
-          if (response[i].buttons.length > 0) {
-            addSuggestion(response[i].buttons);
-          }
-        }
-
-        // check if the response contains "attachment"
-        if (Object.hasOwnProperty.call(response[i], "attachment")) {
-          if (response[i].attachment != null) {
-            if (response[i].attachment.type === "video") {
-              // check if the attachment type is "video"
-              const video_url = response[i].attachment.payload.src;
-
-              const BotResponse = `<div class="video-container"> <iframe src="${video_url}" frameborder="0" allowfullscreen></iframe> </div>`;
-              $(BotResponse).appendTo(".chats").hide().fadeIn(1000);
-            }
-          }
-        }
-        // check if the response contains "custom" message
-        if (Object.hasOwnProperty.call(response[i], "custom")) {
-          const { payload } = response[i].custom;
-          if (payload === "quickReplies") {
-            // check if the custom payload type is "quickReplies"
-            const quickRepliesData = response[i].custom.data;
-            showQuickReplies(quickRepliesData);
-            return;
-          }
-
-          // check if the custom payload type is "pdf_attachment"
-          if (payload === "pdf_attachment") {
-            renderPdfAttachment(response[i]);
-            return;
-          }
-
-          // check if the custom payload type is "dropDown"
-          if (payload === "dropDown") {
-            const dropDownData = response[i].custom.data;
-            renderDropDwon(dropDownData);
-            return;
-          }
-
-          // check if the custom payload type is "location"
-          if (payload === "location") {
-            $("#userInput").prop("disabled", true);
-            getLocation();
-            scrollToBottomOfResults();
-            return;
-          }
-
-          // check if the custom payload type is "cardsCarousel"
-          if (payload === "cardsCarousel") {
-            const restaurantsData = response[i].custom.data;
-            showCardsCarousel(restaurantsData);
-            return;
-          }
-
-          // check if the custom payload type is "chart"
-          if (payload === "chart") {
-            /**
-             * sample format of the charts data:
-             *  var chartData =  { "title": "Leaves", "labels": ["Sick Leave", "Casual Leave", "Earned Leave", "Flexi Leave"], "backgroundColor": ["#36a2eb", "#ffcd56", "#ff6384", "#009688", "#c45850"], "chartsData": [5, 10, 22, 3], "chartType": "pie", "displayLegend": "true" }
-             */
-
-            const chartData = response[i].custom.data;
-            const {
-              title,
-              labels,
-              backgroundColor,
-              chartsData,
-              chartType,
-              displayLegend,
-            } = chartData;
-
-            // pass the above variable to createChart function
-            createChart(
-              title,
-              labels,
-              backgroundColor,
-              chartsData,
-              chartType,
-              displayLegend
-            );
-
-            // on click of expand button, render the chart in the charts modal
-            $(document).on("click", "#expand", () => {
-              createChartinModal(
-                title,
-                labels,
-                backgroundColor,
-                chartsData,
-                chartType,
-                displayLegend
-              );
-            });
-            return;
-          }
-
-          // check of the custom payload type is "collapsible"
-          if (payload === "collapsible") {
-            const { data } = response[i].custom;
-            // pass the data variable to createCollapsible function
-            createCollapsible(data);
-          }
-        }
-      }
-      scrollToBottomOfResults();
-    }
+  if (!Array.isArray(response) || response.length < 1) {
+    showFallbackMessage();
     $(".usrInput").focus();
-  }, 500);
+    return;
+  }
+
+  for (let i = 0; i < response.length; i += 1) {
+    const message = response[i] || {};
+
+    if (typeof message.text === "string" && message.text !== "") {
+      appendToChat(buildBotTextMessage(message.text));
+    }
+
+    if (message.image) {
+      renderImage(message.image);
+    }
+
+    if (Array.isArray(message.buttons) && message.buttons.length > 0) {
+      addSuggestion(message.buttons);
+    }
+
+    if (message.attachment && message.attachment.type === "video") {
+      const src = message.attachment.payload && message.attachment.payload.src;
+      renderVideo(src);
+    }
+
+    if (message.custom) {
+      const stop = renderCustomPayload(message);
+      if (stop) return;
+    }
+  }
+
+  scrollToBottomOfResults();
+  $(".usrInput").focus();
 }
 
 /**
- * sends the user message to the rasa server,
- * @param {String} message user message
+ * Remove interactive elements from previous turns before a new message is sent.
  */
-async function send(message) {
-  await new Promise((r) => setTimeout(r, 2000));
+function clearTransientElements() {
+  $(".collapsible").remove();
+  $(".dropDownMsg").remove();
+  destroyCharts();
+  $("#paginated_cards").remove();
+  $(".suggestions").remove();
+  $(".quickReplies").remove();
+}
+
+/**
+ * Send the user message to the Rasa server.
+ * @param {String} message user message or intent payload
+ */
+function send(message) {
+  const config = getConfig();
+  const isRestart = typeof message === "string" && message.toLowerCase() === "/restart";
+
   $.ajax({
-    url: rasa_server_url,
+    url: config.rasaServerUrl,
     type: "POST",
     contentType: "application/json",
-    data: JSON.stringify({ message, sender: sender_id }),
+    timeout: config.requestTimeoutMs,
+    data: JSON.stringify({ message, sender: senderId }),
     success(botResponse, status) {
-      console.log("Response from Rasa: ", botResponse, "\nStatus: ", status);
+      log("Response from Rasa:", botResponse, "Status:", status);
 
-      // if user wants to restart the chat and clear the existing chat contents
-      if (message.toLowerCase() === "/restart") {
+      if (isRestart) {
+        hideBotTyping();
         $("#userInput").prop("disabled", false);
-
-        // if you want the bot to start the conversation after restart
-        // customActionTrigger();
+        if (config.startConversation) {
+          customActionTrigger();
+        }
         return;
       }
       setBotResponse(botResponse);
     },
     error(xhr, textStatus) {
-      if (message.toLowerCase() === "/restart") {
-        $("#userInput").prop("disabled", false);
-        // if you want the bot to start the conversation after the restart action.
-        // actionTrigger();
-        // return;
-      }
-
-      // if there is no response from rasa server, set error bot response
-      setBotResponse("");
-      console.log("Error from bot end: ", textStatus);
+      reportError(textStatus, { stage: "send", status: xhr && xhr.status });
+      $("#userInput").prop("disabled", false);
+      setBotResponse([]);
     },
   });
 }
+
 /**
- * sends an event to the bot,
- *  so that bot can start the conversation by greeting the user
+ * Ask the Rasa core server to execute an action so the bot speaks first.
  *
- * `Note: this method will only work in Rasa 1.x`
+ * `Note: this method only works in Rasa 1.x`
  */
 // eslint-disable-next-line no-unused-vars
 function actionTrigger() {
+  const config = getConfig();
+  const base = new URL(config.rasaServerUrl, window.location.href);
   $.ajax({
-    url: `http://localhost:5005/conversations/${sender_id}/execute`,
+    url: `${base.origin}/conversations/${senderId}/execute`,
     type: "POST",
     contentType: "application/json",
+    timeout: config.requestTimeoutMs,
     data: JSON.stringify({
-      name: action_name,
+      name: config.startActionName,
       policy: "MappingPolicy",
       confidence: "0.98",
     }),
     success(botResponse, status) {
-      console.log("Response from Rasa: ", botResponse, "\nStatus: ", status);
-
-      if (Object.hasOwnProperty.call(botResponse, "messages")) {
+      log("Response from Rasa:", botResponse, "Status:", status);
+      if (botResponse && Array.isArray(botResponse.messages)) {
         setBotResponse(botResponse.messages);
       }
       $("#userInput").prop("disabled", false);
     },
     error(xhr, textStatus) {
-      // if there is no response from rasa server
-      setBotResponse("");
-      console.log("Error from bot end: ", textStatus);
+      reportError(textStatus, { stage: "actionTrigger", status: xhr && xhr.status });
+      setBotResponse([]);
       $("#userInput").prop("disabled", false);
     },
   });
 }
 
 /**
- * sends an event to the custom action server,
- *  so that bot can start the conversation by greeting the user
+ * Ask the custom action server to run `startActionName` so the bot speaks first.
  *
- * Make sure you run action server using the command
- * `rasa run actions --cors "*"`
+ * Make sure the action server allows this origin, e.g.
+ * `rasa run actions --cors "https://www.example.com"`
  *
- * `Note: this method will only work in Rasa 2.x`
+ * `Note: this method works in Rasa 2.x and later`
  */
-// eslint-disable-next-line no-unused-vars
 function customActionTrigger() {
+  const config = getConfig();
+  showBotTyping();
   $.ajax({
-    url: "http://localhost:5055/webhook/",
+    url: config.actionServerUrl,
     type: "POST",
     contentType: "application/json",
+    timeout: config.requestTimeoutMs,
     data: JSON.stringify({
-      next_action: action_name,
-      tracker: {
-        sender_id,
-      },
+      next_action: config.startActionName,
+      tracker: { sender_id: senderId },
     }),
     success(botResponse, status) {
-      console.log("Response from Rasa: ", botResponse, "\nStatus: ", status);
-
-      if (Object.hasOwnProperty.call(botResponse, "responses")) {
+      log("Response from action server:", botResponse, "Status:", status);
+      if (botResponse && Array.isArray(botResponse.responses)) {
         setBotResponse(botResponse.responses);
+      } else {
+        hideBotTyping();
       }
       $("#userInput").prop("disabled", false);
     },
     error(xhr, textStatus) {
-      // if there is no response from rasa server
-      setBotResponse("");
-      console.log("Error from bot end: ", textStatus);
+      reportError(textStatus, { stage: "customActionTrigger", status: xhr && xhr.status });
+      setBotResponse([]);
       $("#userInput").prop("disabled", false);
     },
   });
 }
 
 /**
- * clears the conversation from the chat screen
- * & sends the `/resart` event to the Rasa server
+ * Clear the conversation from the chat screen and send `/restart` to Rasa.
  */
 function restartConversation() {
   $("#userInput").prop("disabled", true);
-  // destroy the existing chart
-  $(".collapsible").remove();
-
-  if (typeof chatChart !== "undefined") {
-    chatChart.destroy();
-  }
-
-  $(".chart-container").remove();
-  if (typeof modalChart !== "undefined") {
-    modalChart.destroy();
-  }
+  clearTransientElements();
   $(".chats").html("");
   $(".usrInput").val("");
+  showBotTyping();
   send("/restart");
 }
-// triggers restartConversation function.
-$("#restart").click(() => {
+
+/** Read, validate and send whatever is in the input box. */
+function submitUserInput() {
+  const text = $(".usrInput").val();
+  if (!text || $.trim(text) === "") return;
+  clearTransientElements();
+  $(".usrInput").blur();
+  setUserResponse(text);
+  send(text);
+}
+
+$(document).on("click", "#restart", (e) => {
+  e.preventDefault();
   restartConversation();
 });
 
-/**
- * if user hits enter or send button
- * */
-$(".usrInput").on("keyup keypress", (e) => {
-  const keyCode = e.keyCode || e.which;
-
-  const text = $(".usrInput").val();
-  if (keyCode === 13) {
-    if (text === "" || $.trim(text) === "") {
-      e.preventDefault();
-      return false;
-    }
-    // destroy the existing chart, if yu are not using charts, then comment the below lines
-    $(".collapsible").remove();
-    $(".dropDownMsg").remove();
-    if (typeof chatChart !== "undefined") {
-      chatChart.destroy();
-    }
-
-    $(".chart-container").remove();
-    if (typeof modalChart !== "undefined") {
-      modalChart.destroy();
-    }
-
-    $("#paginated_cards").remove();
-    $(".suggestions").remove();
-    $(".quickReplies").remove();
-    $(".usrInput").blur();
-    setUserResponse(text);
-    send(text);
+// Enter sends, Shift+Enter inserts a newline.
+$(document).on("keydown", ".usrInput", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    return false;
+    submitUserInput();
   }
-  return true;
 });
 
-$("#sendButton").on("click", (e) => {
-  const text = $(".usrInput").val();
-  if (text === "" || $.trim(text) === "") {
-    e.preventDefault();
-    return false;
-  }
-  // destroy the existing chart
-  if (typeof chatChart !== "undefined") {
-    chatChart.destroy();
-  }
-
-  $(".chart-container").remove();
-  if (typeof modalChart !== "undefined") {
-    modalChart.destroy();
-  }
-
-  $(".suggestions").remove();
-  $("#paginated_cards").remove();
-  $(".quickReplies").remove();
-  $(".usrInput").blur();
-  $(".dropDownMsg").remove();
-  setUserResponse(text);
-  send(text);
+$(document).on("click keydown", "#sendButton", (e) => {
+  if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
   e.preventDefault();
-  return false;
+  submitUserInput();
 });

@@ -1,14 +1,25 @@
 /**
- * renders pdf attachment on to the chat screen
- * @param {Object} pdf_data json object
+ * Renders a PDF attachment link on to the chat screen.
+ * @param {Object} pdfData Rasa response with `custom: { url, title }`
  */
-function renderPdfAttachment(pdf_data) {
-    const { url: pdf_url } = pdf_data.custom;
-    const { title: pdf_title } = pdf_data.custom;
-    const pdf_attachment = `<div class="pdf_attachment"><div class="row"><div class="col s3 pdf_icon">
-<i class="fa fa-file-pdf-o" aria-hidden="true"></i></div><div class="col s9 pdf_link"><a href="${pdf_url}" target="_blank">
-${pdf_title} </a></div></div></div>`;
-
-    $(".chats").append(pdf_attachment);
-    scrollToBottomOfResults();
+function renderPdfAttachment(pdfData) {
+  const { url, title } = pdfData.custom || {};
+  if (!isSafeUrl(url)) {
+    log("Ignoring PDF attachment with unsafe URL", url);
+    return;
+  }
+  const link = el("a", {
+    href: url,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    text: textOf(title) || "Download PDF",
+  });
+  const attachment = el("div", { class: "pdf_attachment" }, [
+    el("div", { class: "row" }, [
+      el("div", { class: "col s3 pdf_icon" }, svgIcon(ICONS.pdf)),
+      el("div", { class: "col s9 pdf_link" }, link),
+    ]),
+  ]);
+  chatLog().appendChild(attachment);
+  scrollToBottomOfResults();
 }

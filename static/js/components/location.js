@@ -1,56 +1,37 @@
 /**
- *  sends the user location to rasa
- * @param {Object} position json object
+ * Sends the user's coordinates to Rasa as an `/inform` intent.
+ * @param {GeolocationPosition} position
  */
 function getUserPosition(position) {
-    // here you to add the intent which you want to trigger
-    const response = `/inform{"latitude":${position.coords.latitude},"longitude":${position.coords.longitude}}`;
-    $("#userInput").prop("disabled", false);
-    // eslint-disable-next-line no-use-before-define
-    send(response);
-    showBotTyping();
+  const latitude = Number(position.coords.latitude);
+  const longitude = Number(position.coords.longitude);
+  const response = `/inform${JSON.stringify({ latitude, longitude })}`;
+  $("#userInput").prop("disabled", false);
+  showBotTyping();
+  send(response);
 }
 
 /**
- *  handles error while accessing the user's geolocation
- * @param {Object} error json object
+ * Handles a geolocation error by telling the bot the user declined.
+ * @param {GeolocationPositionError} error
  */
 function handleLocationAccessError(error) {
-    switch (error.code) {
-        case error.PERMISSION_DENIED:
-            console.log("User denied the request for Geolocation.");
-            break;
-        case error.POSITION_UNAVAILABLE:
-            console.log("Location information is unavailable.");
-            break;
-        case error.TIMEOUT:
-            console.log("The request to get user location timed out.");
-            break;
-        case error.UNKNOWN_ERROR:
-            console.log("An unknown error occurred.");
-            break;
-        default:
-            break;
-    }
-
-    const response = '/inform{"user_location":"deny"}';
-    // eslint-disable-next-line no-use-before-define
-    send(response);
-    showBotTyping();
-    $(".usrInput").val("");
-    $("#userInput").prop("disabled", false);
+  log("Geolocation error", error && error.code, error && error.message);
+  const response = '/inform{"user_location":"deny"}';
+  showBotTyping();
+  send(response);
+  $(".usrInput").val("");
+  $("#userInput").prop("disabled", false);
 }
 
 /**
- *  fetches the user location from the browser
+ * Asks the browser for the user's location.
  */
 function getLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            getUserPosition,
-            handleLocationAccessError,
-        );
-    } else {
-        console.log("Geolocation is not supported by this browser.");
-    }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(getUserPosition, handleLocationAccessError);
+  } else {
+    log("Geolocation is not supported by this browser.");
+    handleLocationAccessError(null);
+  }
 }

@@ -1,18 +1,28 @@
-
 /**
- * removes the bot typing indicator from the chat screen
+ * Remove the bot typing indicator from the chat screen.
  */
 function hideBotTyping() {
-    $("#botAvatar").remove();
-    $(".botTyping").remove();
+  $("#botAvatar").remove();
+  $(".botTyping").remove();
 }
 
 /**
- * adds the bot typing indicator from the chat screen
+ * Show the bot typing indicator. It stays until the bot responds.
  */
 function showBotTyping() {
-    const botTyping = '<img class="botAvatar" id="botAvatar" src="./static/img/sara_avatar.png"/><div class="botTyping"><div class="bounce1"></div><div class="bounce2"></div><div class="bounce3"></div></div>';
-    $(botTyping).appendTo(".chats");
-    $(".botTyping").show();
-    scrollToBottomOfResults();
+  hideBotTyping();
+  const avatar = el("img", {
+    class: "botAvatar",
+    id: "botAvatar",
+    src: getConfig().botAvatar,
+    alt: "",
+  });
+  const typing = el("div", { class: "botTyping", "aria-label": "Bot is typing" }, [
+    el("div", { class: "bounce1" }),
+    el("div", { class: "bounce2" }),
+    el("div", { class: "bounce3" }),
+  ]);
+  chatLog().appendChild(avatar);
+  chatLog().appendChild(typing);
+  scrollToBottomOfResults();
 }

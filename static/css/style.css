@@ -1,5 +1,5 @@
 body {
-  font-family: "Open Sans", sans-serif;
+  font-family: "Open Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: url("../img/body.png") no-repeat center center fixed;
   background-size: cover;
 }
@@ -103,11 +103,11 @@ textarea {
   resize: none;
   outline: none;
   overflow: hidden;
-  font-family: Lato;
+  font-family: Lato, "Open Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 textarea::-webkit-input-placeholder {
-  font-family: Lato;
+  font-family: Lato, "Open Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 textarea-webkit-scrollbar {
@@ -357,7 +357,6 @@ blockquote {
 .stars-outer {
   display: inline-block;
   position: relative;
-  font-family: FontAwesome;
 }
 
 .stars-outer::before {
@@ -675,14 +674,19 @@ div.content_data::-webkit-scrollbar {
 
 /* css for charts */
 
-#expand:hover {
-  font-size: 18px;
-}
-
-#expand {
+.chart-expand {
   position: absolute;
   right: 10px;
   top: 10px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: #333;
+}
+
+.chart-expand:hover,
+.chart-expand:focus {
+  font-size: 18px;
 }
 
 .modal {
@@ -858,4 +862,55 @@ video:focus {
 
 .pdf_link a {
   color: #060dcfc7;
+}
+
+/* ============= inline svg icons (replace icon fonts) =============== */
+
+.icon,
+.cards .arrow svg,
+.pdf_icon svg,
+.chart-expand svg {
+  display: inline-block;
+  vertical-align: middle;
+  width: 1em;
+  height: 1em;
+}
+
+.dropdown-trigger .icon {
+  width: 24px;
+  height: 24px;
+}
+
+#sendButton .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.cards .arrow {
+  cursor: pointer;
+  line-height: 30px;
+  text-align: center;
+}
+
+.cards .arrow svg {
+  width: 30px;
+  height: 30px;
+  color: #ffffff;
+}
+
+.pdf_icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+/* keyboard focus for interactive chat elements */
+.menuChips:focus-visible,
+.chip:focus-visible,
+#sendButton:focus-visible,
+#profile_div:focus-visible,
+.dropdown-trigger:focus-visible,
+.chart-expand:focus-visible,
+.cards .arrow:focus-visible {
+  outline: 2px solid #060dcf;
+  outline-offset: 2px;
 }
