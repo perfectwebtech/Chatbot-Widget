@@ -54,6 +54,7 @@ export class ChatbotWidgetElement extends HTMLElement {
   #open = false;
   #initialSent = false;
   #busy = false;
+  #queue: string[] = [];
   #restarting = false;
   #streamBubble: HTMLElement | null = null;
   #streamText = "";
@@ -151,21 +152,32 @@ export class ChatbotWidgetElement extends HTMLElement {
   /**
    * Send a message to the bot. `displayText` is what the user bubble shows
    * (defaults to `payload`; pass `""` to send silently, e.g. for intents).
+   * Messages sent while a reply is pending are queued and delivered in order.
    */
   async send(payload: string, displayText: string = payload): Promise<void> {
     const text = payload.trim();
-    if (!text || this.#busy) return;
+    if (!text) return;
     this.#clearTransient();
     if (displayText) this.#append(userRow(displayText, this.#config));
     this.#emit({ type: "message-sent", text: displayText, payload: text });
-    this.#showTyping();
+    this.#queue.push(text);
+    if (!this.#busy) await this.#drain();
+  }
+
+  async #drain(): Promise<void> {
     this.#setBusy(true);
     try {
-      await this.#ensureTransport().send(text);
-    } catch (error) {
-      this.#hideTyping();
-      this.#appendBotText(this.#config.messages.fallback);
-      this.#emit({ type: "error", error, context: "send" });
+      while (this.#queue.length) {
+        const text = this.#queue.shift()!;
+        this.#showTyping();
+        try {
+          await this.#ensureTransport().send(text);
+        } catch (error) {
+          this.#hideTyping();
+          this.#appendBotText(this.#config.messages.fallback);
+          this.#emit({ type: "error", error, context: "send" });
+        }
+      }
     } finally {
       this.#setBusy(false);
     }
@@ -173,6 +185,7 @@ export class ChatbotWidgetElement extends HTMLElement {
 
   /** Clear the screen and send `/restart` to Rasa. */
   async restart(): Promise<void> {
+    this.#queue.length = 0;
     this.clear();
     this.#emit({ type: "restart" });
     this.#initialSent = false;

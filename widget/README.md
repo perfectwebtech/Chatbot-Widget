@@ -56,31 +56,31 @@ The ES build code-splits: Chart.js and Socket.IO are loaded only when a chart or
 
 ## Configuration
 
-| Key | Default | Notes |
-| --- | --- | --- |
-| `serverUrl` | `http://localhost:5005/webhooks/rest/webhook` | REST webhook URL, or the server origin for Socket.IO |
-| `transport` | `"rest"` | `"rest"` or `"socketio"` |
-| `streaming` | `false` | REST only. Sends `?stream=true`; Rasa Pro streams tokens as newline-delimited JSON. Leave off for Rasa OSS |
-| `socketPath` | `/socket.io` | `socketio_path` from `credentials.yml` |
-| `socketMetadataKey` | `metadata` | `metadata_key` from `credentials.yml` (`customData` for rasa-webchat bots) |
-| `socketUserEvent` / `socketBotEvent` | `user_uttered` / `bot_uttered` | `user_message_evt` / `bot_message_evt` |
-| `authToken` | – | Sent as `?token=`. Rasa does **not** check it on the REST webhook; enforce it at your proxy |
-| `jwt` | – | String or (async) function. Sent as `Authorization: Bearer` on REST and as `auth.token` on Socket.IO (checked by Rasa when `jwt_key` is set) |
-| `metadata` | – | Object or function; sent with every message as REST `metadata` / Socket.IO `metadata` |
-| `senderId` | generated | Conversation id |
-| `persistSession` | `true` | Keep the sender id in `localStorage` across page loads |
-| `storageKey` | `chatbot-widget` | Prefix for storage keys |
-| `requestTimeoutMs` | `30000` | REST request timeout; also the Socket.IO handshake timeout |
-| `initialPayload` | – | Sent silently the first time the chat opens, e.g. `/greet` |
-| `botName`, `launcherAvatar`, `botAvatar`, `userAvatar` | | Branding; avatars fall back to icons |
-| `greeting` | enabled | `{ enabled, title, text, durationMs }` |
-| `openOnLoad` | `false` | |
-| `position` | `"right"` | `"right"` or `"left"` |
-| `theme` | `"auto"` | `"auto"` follows `prefers-color-scheme`; or `"light"` / `"dark"` |
-| `primaryColor` | – | Shortcut for `--cw-primary` |
-| `messages` | English | Every UI string, for localisation |
-| `debug` | `false` | Console diagnostics |
-| `onEvent` | – | `(event) => void`; see Events |
+| Key                                                    | Default                                       | Notes                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serverUrl`                                            | `http://localhost:5005/webhooks/rest/webhook` | REST webhook URL, or the server origin for Socket.IO                                                                                         |
+| `transport`                                            | `"rest"`                                      | `"rest"` or `"socketio"`                                                                                                                     |
+| `streaming`                                            | `false`                                       | REST only. Sends `?stream=true`; Rasa Pro streams tokens as newline-delimited JSON. Leave off for Rasa OSS                                   |
+| `socketPath`                                           | `/socket.io`                                  | `socketio_path` from `credentials.yml`                                                                                                       |
+| `socketMetadataKey`                                    | `metadata`                                    | `metadata_key` from `credentials.yml` (`customData` for rasa-webchat bots)                                                                   |
+| `socketUserEvent` / `socketBotEvent`                   | `user_uttered` / `bot_uttered`                | `user_message_evt` / `bot_message_evt`                                                                                                       |
+| `authToken`                                            | –                                             | Sent as `?token=`. Rasa does **not** check it on the REST webhook; enforce it at your proxy                                                  |
+| `jwt`                                                  | –                                             | String or (async) function. Sent as `Authorization: Bearer` on REST and as `auth.token` on Socket.IO (checked by Rasa when `jwt_key` is set) |
+| `metadata`                                             | –                                             | Object or function; sent with every message as REST `metadata` / Socket.IO `metadata`                                                        |
+| `senderId`                                             | generated                                     | Conversation id                                                                                                                              |
+| `persistSession`                                       | `true`                                        | Keep the sender id in `localStorage` across page loads                                                                                       |
+| `storageKey`                                           | `chatbot-widget`                              | Prefix for storage keys                                                                                                                      |
+| `requestTimeoutMs`                                     | `30000`                                       | REST request timeout; also the Socket.IO handshake timeout                                                                                   |
+| `initialPayload`                                       | –                                             | Sent silently the first time the chat opens, e.g. `/greet`                                                                                   |
+| `botName`, `launcherAvatar`, `botAvatar`, `userAvatar` |                                               | Branding; avatars fall back to icons                                                                                                         |
+| `greeting`                                             | enabled                                       | `{ enabled, title, text, durationMs }`                                                                                                       |
+| `openOnLoad`                                           | `false`                                       |                                                                                                                                              |
+| `position`                                             | `"right"`                                     | `"right"` or `"left"`                                                                                                                        |
+| `theme`                                                | `"auto"`                                      | `"auto"` follows `prefers-color-scheme`; or `"light"` / `"dark"`                                                                             |
+| `primaryColor`                                         | –                                             | Shortcut for `--cw-primary`                                                                                                                  |
+| `messages`                                             | English                                       | Every UI string, for localisation                                                                                                            |
+| `debug`                                                | `false`                                       | Console diagnostics                                                                                                                          |
+| `onEvent`                                              | –                                             | `(event) => void`; see Events                                                                                                                |
 
 ## Theming
 
@@ -106,14 +106,17 @@ Full list in [`src/styles.css`](src/styles.css). Below 480 px the panel goes ful
 
 ```ts
 const widget = init(config);
-widget.openChat(); widget.closeChat(); widget.toggle();
-await widget.send("hello");            // show "hello" and send it
-await widget.send("/greet", "");       // send silently
-await widget.restart();                // clear and send /restart
-widget.clear();                        // clear screen only
+widget.openChat();
+widget.closeChat();
+widget.toggle();
+await widget.send("hello"); // show "hello" and send it
+await widget.send("/greet", ""); // send silently
+await widget.restart(); // clear and send /restart
+widget.clear(); // clear screen only
 widget.receive([{ text: "Proactive message" }]); // render bot messages from your own code
 widget.config = { ...widget.config, theme: "dark" }; // reconfigure live
-widget.senderId; widget.open;
+widget.senderId;
+widget.open;
 ```
 
 ## Events
@@ -129,15 +132,15 @@ document.addEventListener("chatbot-widget:message-sent", (e) => console.log(e.de
 
 Standard `text`, `image`, `buttons`, `attachment{type:"video"}` plus `custom` payloads:
 
-| `custom.payload` | `custom.data` |
-| --- | --- |
-| `quickReplies` | `[{ title, payload }]` |
-| `cardsCarousel` | `[{ title, subtitle?, image?, payload? \| url? }]` |
-| `dropDown` | `[{ label, value }]` |
-| `collapsible` | `[{ title, description }]` (description is Markdown) |
-| `chart` | `{ title, labels, backgroundColor, chartsData, chartType, displayLegend }` |
-| `pdf_attachment` | `custom.url`, `custom.title` |
-| `location` | asks the browser for coordinates and sends `/inform{"latitude","longitude"}` |
+| `custom.payload` | `custom.data`                                                                |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `quickReplies`   | `[{ title, payload }]`                                                       |
+| `cardsCarousel`  | `[{ title, subtitle?, image?, payload? \| url? }]`                           |
+| `dropDown`       | `[{ label, value }]`                                                         |
+| `collapsible`    | `[{ title, description }]` (description is Markdown)                         |
+| `chart`          | `{ title, labels, backgroundColor, chartsData, chartType, displayLegend }`   |
+| `pdf_attachment` | `custom.url`, `custom.title`                                                 |
+| `location`       | asks the browser for coordinates and sends `/inform{"latitude","longitude"}` |
 
 Socket.IO payloads (`quick_replies`, `attachment{type:"image"}`, bare custom objects) are normalised to the same shapes.
 
