@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget e2e (ES build)</title>
+    <style>
+      /* hostile host CSS: the widget must ignore it */
+      * {
+        font-family: "Comic Sans MS", cursive !important;
+      }
+      button {
+        background: red !important;
+        border: 5px dashed lime !important;
+      }
+      body {
+        margin: 0;
+        padding: 40px;
+        background: #1d4ed8;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ES build test page</h1>
+    <script type="module">
+      import { init } from "/dist/chatbot-widget.es.js";
+      const params = new URLSearchParams(location.search);
+      window.widget = init({
+        serverUrl: "http://127.0.0.1:5005/webhooks/rest/webhook",
+        streaming: params.get("streaming") === "true",
+        botName: "Ava",
+        greeting: { enabled: params.get("greeting") === "true" },
+        persistSession: false,
+        debug: true,
+      });
+    </script>
+  </body>
+</html>

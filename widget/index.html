@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chatbot Widget demo</title>
+    <style>
+      /* Deliberately hostile host-page CSS: the widget must not be affected. */
+      * {
+        font-family: "Comic Sans MS", cursive;
+      }
+      button {
+        background: red !important;
+        border: 5px dashed lime !important;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #5b21b6, #1d4ed8);
+        color: #fff;
+        padding: 48px;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 40px;
+        margin: 0 0 12px;
+      }
+      p {
+        max-width: 560px;
+        opacity: 0.85;
+      }
+      code {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Chatbot Widget 2.0 demo</h1>
+    <p>
+      This page applies aggressive global CSS (Comic Sans, red buttons) to prove the widget is
+      isolated inside its Shadow DOM. Open the launcher in the corner. Try sending
+      <code>hello</code>, <code>buttons</code>, <code>cards</code>, <code>chart</code>,
+      <code>dropdown</code>, <code>collapsible</code>, <code>pdf</code>, <code>image</code>,
+      <code>stream</code> or <code>xss</code> against the mock server (<code
+        >node e2e/mock-rasa.mjs</code
+      >).
+    </p>
+    <p>
+      <button id="toggle-theme" type="button">Toggle dark theme</button>
+      <button id="open" type="button">Open programmatically</button>
+    </p>
+
+    <script type="module">
+      import { init } from "./src/index.ts";
+
+      const params = new URLSearchParams(location.search);
+      const widget = init({
+        serverUrl: params.get("server") ?? "http://127.0.0.1:5005/webhooks/rest/webhook",
+        transport: params.get("transport") === "socketio" ? "socketio" : "rest",
+        streaming: params.get("streaming") === "true",
+        botName: "Ava",
+        greeting: { title: "Hi there 👋", text: "Ask me anything about this demo." },
+        primaryColor: params.get("color") ?? undefined,
+        debug: true,
+        onEvent: (event) => console.log("[widget event]", event),
+      });
+
+      document.getElementById("toggle-theme").addEventListener("click", () => {
+        const next = widget.getAttribute("theme") === "dark" ? "light" : "dark";
+        widget.config = { ...widget.config, theme: next };
+      });
+      document.getElementById("open").addEventListener("click", () => widget.openChat());
+      window.widget = widget;
+    </script>
+  </body>
+</html>

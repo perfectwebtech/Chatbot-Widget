@@ -1,4 +1,6 @@
-## 🔥 **[Widget 2.0](https://github.com/JiteshGaikwad/Chatbot-Widget/tree/Widget2.0) released, built using React JS & Tailwind CSS**
+## 🚀 Widget 2.0 (TypeScript, Shadow DOM, one script tag) lives in [`widget/`](widget/)
+
+The new widget is framework-free, isolated from host-page CSS, speaks Rasa REST, streaming and Socket.IO, and ships with unit and end-to-end tests. See [widget/README.md](widget/README.md). The original jQuery widget below remains available at the repository root.
 
 ![ScreenShot](static/img/banner.png)
 
