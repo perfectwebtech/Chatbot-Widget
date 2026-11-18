@@ -164,3 +164,41 @@ describe("<chatbot-widget>", () => {
     el.remove();
   });
 });
+
+describe("<chatbot-widget> queueing", () => {
+  it("delivers messages sent while a reply is pending, in order", async () => {
+    register();
+    const seen: string[] = [];
+    let release: (() => void) | null = null;
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const message = JSON.parse(String(init?.body)).message as string;
+      seen.push(message);
+      if (message === "slow") await new Promise<void>((r) => (release = r));
+      return new Response(JSON.stringify([{ text: `echo: ${message}` }]), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const widget = init({
+      serverUrl: "https://bot/x",
+      greeting: { enabled: false },
+      persistSession: false,
+    });
+    const first = widget.send("slow");
+    await new Promise((r) => setTimeout(r, 0));
+    void widget.send("second");
+    void widget.send("third");
+    expect(seen).toEqual(["slow"]);
+    release!();
+    await first;
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen).toEqual(["slow", "second", "third"]);
+    const bots = Array.from(widget.shadowRoot!.querySelectorAll(".cw-bubble--bot")).map((n) =>
+      n.textContent?.trim(),
+    );
+    expect(bots).toEqual(["echo: slow", "echo: second", "echo: third"]);
+    widget.remove();
+    vi.unstubAllGlobals();
+  });
+});
